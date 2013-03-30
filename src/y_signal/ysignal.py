@@ -9,7 +9,7 @@ from weakref import WeakSet, WeakKeyDictionary
 import inspect
 
 
-THREAD_POOL_EXECUTOR = ThreadPoolExecutor(max_workers=1)
+THREAD_POOL_EXECUTOR = ThreadPoolExecutor(max_workers=2)
 
 
 class Ysignal(object):
@@ -70,7 +70,7 @@ class Ysignal(object):
 
     def _emitMethods(self, *args, **kwargs):
         '''Emits a signal to any Method slots'''
-        for obj, funcs in self._methods.iteritems():
+        for obj, funcs in self._methods.items():
             for func in funcs:
                 method = getattr(obj, func.func_name)
                 method(*args, **kwargs)
