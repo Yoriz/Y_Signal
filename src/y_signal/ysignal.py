@@ -4,12 +4,67 @@ Created on 28 Jan 2013
 @author: Dave Wilson
 '''
 
-from concurrent.futures import ThreadPoolExecutor, wait
 from weakref import WeakSet, WeakKeyDictionary
 import inspect
+from Queue import Queue, Empty
+from threading import Thread, Lock
 
 
-THREAD_POOL_EXECUTOR = ThreadPoolExecutor(max_workers=2)
+class _ThreadWorker(object):
+    def __init__(self, func, *args, **kwargs):
+        self.class_ = func
+        self.args = args
+        self.kwargs = kwargs
+
+
+class QThread(Thread):
+    '''
+    A thread that that picks off and calls items from the passed in queue until
+    there are no items left
+    '''
+    def __init__(self, queue, lock):
+        '''
+
+        :param queue: An instance of a QueuedThread
+        :param lock: The thread lock to use with this thread
+        '''
+        Thread.__init__(self)
+        self.daemon = False
+        self.queue = queue
+        self.lock = lock
+        self.start()
+
+    def run(self):
+        self.queue.threadRunning = True
+        while not self.queue.empty():
+            with self.lock:
+                try:
+                    item = self.queue.get_nowait()
+                    item.class_(*item.args, **item.kwargs)
+                    self.queue.task_done()
+                except Empty:
+                    pass
+        self.queue.threadRunning = False
+
+
+class QueuedThread(Queue):
+    def __init__(self):
+        Queue.__init__(self)
+        self.threadRunning = False
+
+    def createThread(self):
+        self.thread = QThread(self, Lock())
+
+    def submit(self, func, *args, **kwargs):
+        self.put(_ThreadWorker(func, *args, **kwargs))
+        if not self.threadRunning:
+            self.createThread()
+
+    def waitThreadNotRunning(self):
+        self.join()
+
+
+queuedThread = QueuedThread()
 
 
 class Ysignal(object):
@@ -19,7 +74,7 @@ class Ysignal(object):
         self._functions = WeakSet()
         self._methods = WeakKeyDictionary()
         self.useThread = useThread
-        self.threadPoolExe = THREAD_POOL_EXECUTOR
+        self.queuedThread = queuedThread
 
     def slotCheck(self, future):
         '''Raises an exception if an error occurred during the future call'''
@@ -27,34 +82,31 @@ class Ysignal(object):
 
     def waitInQueue(self):
         '''Wait in queue for signals to complete'''
-        future = self.threadPoolExe.submit(lambda: object)
-        wait((future,))
+        self.queuedThread.waitThreadNotRunning()
 
     def shutDownQueue(self):
-        self.threadPoolExe.shutdown()
+        self.queuedThread.shutdown()
 
-    def waitTillQueueEmpty(self):
-        '''Wait till the queue is empty (not reliable!)'''
-        while not self.threadPoolExe._work_queue.empty():
-            print 'Waiting in waitTillEndQueue'
-            self.waitInQueue()
-        self.waitInQueue()
+#     def waitTillQueueEmpty(self):
+#         '''Wait till the queue is empty (not reliable!)'''
+#         while not self.queuedThread._work_queue.empty():
+#             print 'Waiting in waitTillEndQueue'
+#             self.waitInQueue()
+#         self.waitInQueue()
 
     def emitSlot(self, slot, *args, **kwargs):
         '''emit a signal to the passed in slot only'''
         if self.useThread:
-            future = self.threadPoolExe.submit(slot, *args, **kwargs)
-            future.add_done_callback(self.slotCheck)
-            return future
+            self.queuedThread.submit(slot, *args, **kwargs)
+
         else:
             slot(*args, **kwargs)
 
     def emit(self, *args, **kwargs):
         '''emit a signal to all slots'''
         if self.useThread:
-            future = self.threadPoolExe.submit(self._emitCall, *args, **kwargs)
-            future.add_done_callback(self.slotCheck)
-            return future
+            self.queuedThread.submit(self._emitCall, *args, **kwargs)
+
         else:
             self._emitCall(*args, **kwargs)
 
@@ -78,9 +130,8 @@ class Ysignal(object):
     def bind(self, slot):
         '''Add a slot to the list of listeners'''
         if self.useThread:
-            future = self.threadPoolExe.submit(self._bindCall, slot)
-            future.add_done_callback(self.slotCheck)
-            return future
+            self.queuedThread.submit(self._bindCall, slot)
+
         else:
             self._bindCall(slot)
 
@@ -106,9 +157,8 @@ class Ysignal(object):
     def unbind(self, slot):
         '''Remove slot from the list of listeners'''
         if self.useThread:
-            future = self.threadPoolExe.submit(self._unbindCall, slot)
-            future.add_done_callback(self.slotCheck)
-            return future
+            self.queuedThread.submit(self._unbindCall, slot)
+
         else:
             self._unbindCall(slot)
 
@@ -136,9 +186,8 @@ class Ysignal(object):
     def unbindAll(self):
         '''Remove all slots'''
         if self.useThread:
-            future = self.threadPoolExe.submit(self._unbindAllCall)
-            future.add_done_callback(self.slotCheck)
-            return future
+            self.queuedThread.submit(self._unbindAllCall)
+
         else:
             self._unbindAllCall()
 

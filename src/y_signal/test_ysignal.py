@@ -12,7 +12,7 @@ import unittest
 class TestYsignal(unittest.TestCase):
 
     def setUp(self):
-        self.signal = Ysignal(False)
+        self.signal = Ysignal(True)
         self.attr1 = None
         self.attr2 = None
         self.attr3 = 0
@@ -27,11 +27,8 @@ class TestYsignal(unittest.TestCase):
         pass
 
     def methodAdd(self):
-        time.sleep(0.25)
+        time.sleep(0.05)
         self.attr3 += 1
-
-    def methodRaise(self):
-        raise ValueError('Raised ValueError')
 
     def testConnectFunction(self):
         def testFunction():
@@ -97,13 +94,6 @@ class TestYsignal(unittest.TestCase):
         self.signal.emitSlot(self.methodAdd)
         self.signal.waitInQueue()
         self.assertEqual(self.attr3, 1)
-
-    def testRaiseError(self):
-        if self.signal.useThread:
-            self.signal.slotCheck = lambda future: True
-            future = self.signal.emitSlot(self.methodRaise)
-            self.signal.waitInQueue()
-            self.assertRaises(ValueError, future.result)
 
     def testDisconnectSlotFunction(self):
         def testFunction():
