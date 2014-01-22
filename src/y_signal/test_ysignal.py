@@ -12,7 +12,7 @@ import unittest
 class TestYsignal(unittest.TestCase):
 
     def setUp(self):
-        self.signal = ysignal.Ysignal(True)
+        self.signal = ysignal.Ysignal(ysignal.QueuedThread())
         self.attr1 = None
         self.attr2 = None
         self.attr3 = 0

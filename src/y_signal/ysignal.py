@@ -50,16 +50,12 @@ class QueuedThread(queue.Queue):
         self.join()
 
 
-queued_thread = QueuedThread()
-
-
 class Ysignal(object):
     '''WeakRef Signal/Slots that uses a queued thread if required'''
-    def __init__(self, use_thread=True):
+    def __init__(self, queued_thread=None):
         '''Initialise attributes to store observers'''
         self._functions = weakref.WeakSet()
         self._methods = weakref.WeakKeyDictionary()
-        self.use_thread = use_thread
         self.queued_thread = queued_thread
 
     def wait_in_queue(self):
@@ -68,7 +64,7 @@ class Ysignal(object):
 
     def emit_slot(self, slot, *args, **kwargs):
         '''emit a signal to the passed in slot only'''
-        if self.use_thread:
+        if self.queued_thread:
             self.queued_thread.submit(slot, *args, **kwargs)
 
         else:
@@ -76,7 +72,7 @@ class Ysignal(object):
 
     def emit(self, *args, **kwargs):
         '''emit a signal to all slots'''
-        if self.use_thread:
+        if self.queued_thread:
             self.queued_thread.submit(self._emit_call, *args, **kwargs)
 
         else:
@@ -101,7 +97,7 @@ class Ysignal(object):
 
     def bind(self, slot):
         '''Add a slot to the list of listeners'''
-        if self.use_thread:
+        if self.queued_thread:
             self.queued_thread.submit(self._bind_call, slot)
 
         else:
@@ -128,7 +124,7 @@ class Ysignal(object):
 
     def unbind(self, slot):
         '''Remove slot from the list of listeners'''
-        if self.use_thread:
+        if self.queued_thread:
             self.queued_thread.submit(self._unbind_call, slot)
 
         else:
@@ -157,7 +153,7 @@ class Ysignal(object):
 
     def unbind_all(self):
         '''Remove all slots'''
-        if self.use_thread:
+        if self.queued_thread:
             self.queued_thread.submit(self._unbind_all_call)
 
         else:
