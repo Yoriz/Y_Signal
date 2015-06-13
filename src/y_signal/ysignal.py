@@ -85,13 +85,13 @@ class Ysignal(object):
 
     def _emit_functions(self, *args, **kwargs):
         '''Emits a signal to any Function slots'''
-        for func in self._functions:
+        for func in tuple(self._functions):
             func(*args, **kwargs)
 
     def _emitMethods(self, *args, **kwargs):
         '''Emits a signal to any Method slots'''
         for obj, funcs in self._methods.items():
-            for func in funcs:
+            for func in tuple(funcs):
                 method = getattr(obj, func.func_name)
                 method(*args, **kwargs)
 
